@@ -1,3 +1,4 @@
+import os
 import re
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -20,9 +21,14 @@ class ComplaintPreprocessor:
         """
         Load CFPB complaint dataset.
         """
-        self.df = pd.read_csv(self.file_path)
+
+        self.df = pd.read_csv(
+            self.file_path,
+            low_memory=False
+        )
 
         print(f"Dataset Shape: {self.df.shape}")
+
         return self.df
 
     def perform_eda(self):
@@ -36,54 +42,113 @@ class ComplaintPreprocessor:
         print("\n=== Missing Values ===")
         print(self.df.isnull().sum())
 
-        # Product Distribution
-        plt.figure(figsize=(12, 6))
+        figures_dir = "data/processed/figures"
+        os.makedirs(figures_dir, exist_ok=True)
 
-        self.df["Product"].value_counts().plot(
-            kind="bar"
-        )
+        # ----------------------------
+        # Product Distribution
+        # ----------------------------
+
+        plt.figure(figsize=(16, 8))
+
+        self.df["Product"].value_counts().plot(kind="bar")
 
         plt.title("Complaint Distribution by Product")
         plt.ylabel("Count")
-        plt.tight_layout()
-        plt.show()
+        plt.xlabel("Product")
+        plt.xticks(rotation=45, ha="right")
 
-        # Narrative Availability
+        plt.tight_layout()
+
+        plt.savefig(
+            f"{figures_dir}/product_distribution.png",
+            bbox_inches="tight"
+        )
+
+        plt.close()
+
+        print(
+            f"\nSaved product distribution plot to "
+            f"{figures_dir}/product_distribution.png"
+        )
+
+        # ----------------------------
+        # Narrative Analysis
+        # ----------------------------
 
         narrative_col = "Consumer complaint narrative"
 
         with_narrative = self.df[narrative_col].notna().sum()
         without_narrative = self.df[narrative_col].isna().sum()
 
-        print("\nComplaints with narratives:", with_narrative)
-        print("Complaints without narratives:", without_narrative)
+        print(f"\nComplaints with narratives: {with_narrative}")
+        print(f"Complaints without narratives: {without_narrative}")
 
-        # Word Count Analysis
+        # Analyze ONLY rows that actually contain narratives
+        narratives_only = self.df[
+            self.df[narrative_col].notna()
+        ].copy()
 
-        temp = self.df.copy()
+        word_counts = (
+    narratives_only[narrative_col]
+    .astype(str)
+    .str.count(r"\S+")
+)
 
-        temp["word_count"] = (
-            temp[narrative_col]
-            .fillna("")
-            .apply(lambda x: len(str(x).split()))
+        narratives_only["word_count"] = word_counts
+
+        short_narratives = (
+            narratives_only["word_count"] < 10
+        ).sum()
+
+        long_narratives = (
+            narratives_only["word_count"] > 1000
+        ).sum()
+
+        print(
+            f"Very short narratives (<10 words): "
+            f"{short_narratives}"
         )
 
-        plt.figure(figsize=(10, 5))
+        print(
+            f"Very long narratives (>1000 words): "
+            f"{long_narratives}"
+        )
+
+        print("\nNarrative Statistics")
+        print(word_counts.describe())
+
+        plt.figure(figsize=(12, 6))
 
         sns.histplot(
-            temp["word_count"],
+            word_counts,
             bins=50,
             kde=True
         )
 
-        plt.title("Narrative Word Count Distribution")
-        plt.xlabel("Word Count")
-        plt.show()
+        plt.title(
+            "Consumer Narrative Word Count Distribution"
+        )
 
-        print("\nNarrative Statistics")
-        print(temp["word_count"].describe())
+        plt.xlabel("Word Count")
+        plt.ylabel("Frequency")
+
+        plt.tight_layout()
+
+        plt.savefig(
+            f"{figures_dir}/word_count_distribution.png",
+            bbox_inches="tight"
+        )
+
+        plt.close()
+
+        print(
+            f"\nSaved word count plot to "
+            f"{figures_dir}/word_count_distribution.png"
+        )
 
     @staticmethod
+    
     def clean_text(text):
         """
         Clean complaint narratives.
@@ -94,36 +159,55 @@ class ComplaintPreprocessor:
 
         text = str(text).lower()
 
-        # Remove CFPB boilerplate examples
-        boilerplates = [
-            "i am writing to file a complaint",
-            "this complaint is regarding",
-            "dear sir or madam"
+        # Remove common boilerplate phrases
+        boilerplate_patterns = [
+            r"\bi am writing to file a complaint\b",
+            r"\bi would like to file a complaint\b",
+            r"\bthis complaint is regarding\b",
+            r"\bdear sir or madam\b",
+            r"\bto whom it may concern\b"
         ]
 
-        for phrase in boilerplates:
-            text = text.replace(phrase, "")
+        for pattern in boilerplate_patterns:
+            text = re.sub(pattern, " ", text)
 
         # Remove URLs
-        text = re.sub(r"http\S+", " ", text)
+        text = re.sub(r"http\S+|www\.\S+", " ", text)
+
+        # Remove emails
+        text = re.sub(r"\S+@\S+", " ", text)
+
+        # Remove numbers-only tokens if desired
+        text = re.sub(r"\b\d+\b", " ", text)
 
         # Remove special characters
-        text = re.sub(r"[^a-zA-Z0-9\s]", " ", text)
+        text = re.sub(
+            r"[^a-zA-Z0-9\s]",
+            " ",
+            text
+        )
 
-        # Remove extra spaces
-        text = re.sub(r"\s+", " ", text)
+        # Remove extra whitespace
+        text = re.sub(
+            r"\s+",
+            " ",
+            text
+        )
 
         return text.strip()
 
     def filter_dataset(self):
         """
-        Filter target products and remove empty narratives.
+        Keep only required products and
+        remove empty narratives.
         """
 
         narrative_col = "Consumer complaint narrative"
 
         filtered = self.df[
-            self.df["Product"].isin(TARGET_PRODUCTS)
+            self.df["Product"].isin(
+                TARGET_PRODUCTS
+            )
         ].copy()
 
         filtered = filtered[
@@ -131,25 +215,45 @@ class ComplaintPreprocessor:
         ]
 
         filtered = filtered[
-            filtered[narrative_col].str.strip() != ""
+            filtered[narrative_col]
+            .astype(str)
+            .str.strip()
+            != ""
         ]
 
         filtered["cleaned_narrative"] = (
-            filtered[narrative_col]
-            .apply(self.clean_text)
+        filtered[narrative_col]
+        .apply(self.clean_text)
+    )
+
+        filtered["cleaned_word_count"] = (
+            filtered["cleaned_narrative"]
+            .str.split()
+            .str.len()
         )
+
+        filtered = filtered[
+    filtered["cleaned_word_count"] > 0
+]
 
         self.df = filtered
 
         print(
-            f"Filtered Dataset Shape: {self.df.shape}"
-        )
+                f"\nFiltered Dataset Shape: "
+                f"{self.df.shape}"
+            )
+
+        print("\nFiltered Product Distribution:")
+        print(
+                self.df["Product"]
+                .value_counts()
+            )
 
         return self.df
 
     def save_processed_data(self):
         """
-        Save cleaned dataset.
+        Save processed dataset.
         """
 
         PROCESSED_DATA_FILE.parent.mkdir(
@@ -163,7 +267,8 @@ class ComplaintPreprocessor:
         )
 
         print(
-            f"Saved to {PROCESSED_DATA_FILE}"
+            f"\nSaved processed dataset to:\n"
+            f"{PROCESSED_DATA_FILE}"
         )
 
 

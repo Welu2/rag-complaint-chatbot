@@ -5,3 +5,8 @@ seaborn
 scikit-learn
 pytest
 jupyter
+sentence-transformers
+langchain
+faiss-cpu
+pytest
+tqdm

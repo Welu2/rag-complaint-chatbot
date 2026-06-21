@@ -1,1 +1,6 @@
+pycache/
+*.pyc
+*.pyo
+*.pyd
 data
+vector_store

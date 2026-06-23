@@ -10,3 +10,6 @@ langchain
 faiss-cpu
 pytest
 tqdm
+torch
+accelerate
+pickle-mixin

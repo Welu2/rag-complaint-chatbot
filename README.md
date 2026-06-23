@@ -24,6 +24,7 @@ rag-complaint-chatbot/
 ├── tests/
 │
 ├── app.py
+├── evaluate_rag.py
 ├── requirements.txt
 ├── README.md
 └── .gitignore
@@ -133,6 +134,286 @@ vector_store/
 
 ---
 
+# Task 3: Retrieval-Augmented Generation (RAG) Pipeline & Evaluation
+
+## Objective
+
+Build an end-to-end RAG system that retrieves relevant complaint excerpts and generates grounded answers to user questions using a language model.
+
+---
+
+## RAG Pipeline Overview
+
+The system follows this workflow:
+
+1. **User Question Input**
+2. **Embedding Generation**
+
+   * Uses `all-MiniLM-L6-v2`
+3. **Semantic Retrieval**
+
+   * FAISS retrieves top-k similar complaint chunks (k=5)
+4. **Context Construction**
+
+   * Retrieved chunks are concatenated into a single context block
+5. **Prompt Engineering**
+
+   * Structured prompt instructs model to answer using only retrieved context
+6. **Response Generation**
+
+   * FLAN-T5 model generates final answer
+
+---
+
+## Retriever Implementation
+
+* FAISS-based similarity search
+* Sentence-transformer embeddings
+* Metadata includes complaint text and category
+* Top-k retrieval (k=5 default)
+
+---
+
+## Generator Model
+
+Model used:
+
+```text
+google/flan-t5-small
+```
+
+Rationale:
+
+* Lightweight and fast on CPU
+* Suitable for instruction-based QA
+* Works well for summarization-style RAG tasks
+
+---
+
+## Prompt Design
+
+The prompt instructs the model to:
+
+* Use only retrieved complaint excerpts
+* Avoid hallucination
+* Summarize recurring issues when applicable
+
+Example:
+
+```text
+Answer the question using only the complaint excerpts.
+
+Complaint Excerpts:
+{context}
+
+Question:
+{question}
+
+Answer:
+```
+
+---
+
+## Evaluation Strategy
+
+A qualitative evaluation was conducted using 5 representative questions covering:
+
+* Credit card disputes
+* Mortgage servicing issues
+* Debt collection complaints
+* Billing issues
+* Loan payment concerns
+
+Each output was evaluated based on:
+
+* Relevance of retrieved documents
+* Accuracy of generated answer
+* Clarity and summarization quality
+
+---
+
+## Evaluation Results Summary
+
+| Metric             | Observation                                      |
+| ------------------ | ------------------------------------------------ |
+| Retrieval Quality  | Strong relevance across all queries              |
+| Answer Accuracy    | Generally good, sometimes overly short           |
+| Hallucination Rate | Low (model mostly grounded in context)           |
+| Weakness           | Limited summarization ability due to small model |
+
+---
+
+## Example Results
+
+* Credit card disputes → Correctly identifies unrecognized charges
+* Billing issues → Successfully identifies late reporting patterns
+* Debt collection → Captures customer dissatisfaction themes
+
+---
+
+## Generated Files
+
+```text
+evaluate_rag.py
+src/rag_pipeline.py
+src/generator.py
+src/retriever.py
+```
+# Task 4: Interactive Chat Interface
+
+## Objective
+
+Build a user-friendly web interface that allows users to interact with the Retrieval-Augmented Generation (RAG) system and inspect the source documents used to generate answers.
+
+---
+
+## Interface Framework
+
+The chatbot interface was implemented using **Gradio** to provide a lightweight and interactive web application.
+
+---
+
+## Features Implemented
+
+### Question Input
+
+Users can enter natural language questions about consumer financial complaints through a text input field.
+
+Example questions:
+
+* Why are customers disputing credit card charges?
+* What mortgage servicing issues are common?
+* Why are customers unhappy with debt collection?
+* What billing problems appear frequently?
+
+---
+
+### Answer Generation
+
+The application connects directly to the RAG pipeline developed in Task 3.
+
+Workflow:
+
+1. User submits a question
+2. Relevant complaint chunks are retrieved from FAISS
+3. Retrieved context is passed to the FLAN-T5 generator
+4. A grounded answer is generated and displayed
+
+---
+
+### Source Attribution
+
+To improve transparency and trustworthiness, the interface displays the retrieved complaint chunks used during answer generation.
+
+Features:
+
+* Source documents displayed below answers
+* Expandable source panels
+* Easy verification of generated responses
+
+This allows users to inspect the evidence supporting each answer.
+
+---
+
+### Clear Functionality
+
+A Clear button was implemented to:
+
+* Reset the question field
+* Remove generated answers
+* Clear displayed source documents
+
+---
+
+### Example Questions
+
+The interface includes predefined example questions for quick testing and demonstration.
+
+---
+
+## User Interface Design
+
+The Gradio interface includes:
+
+* Responsive layout
+* Modern styling
+* Dedicated answer display area
+* Expandable source document sections
+* Clear and intuitive navigation
+
+The design prioritizes usability for non-technical users.
+
+---
+
+## Application Architecture
+
+```text
+User Question
+      │
+      ▼
+RAG Pipeline
+      │
+      ├── Retriever (FAISS)
+      │
+      ├── Context Construction
+      │
+      └── Generator (FLAN-T5)
+      │
+      ▼
+Generated Answer
+      │
+      ▼
+Answer + Source Display
+```
+
+---
+
+## Generated Files
+
+```text
+app.py
+```
+
+---
+
+## Running the Application
+
+Launch the Gradio interface:
+
+```bash
+python app.py
+```
+
+After startup, Gradio provides a local URL similar to:
+
+```text
+http://127.0.0.1:7860
+```
+
+Open the URL in a web browser to interact with the chatbot.
+
+---
+
+## Deliverables
+
+* Interactive Gradio application
+* Answer generation interface
+* Source attribution display
+* Clear/reset functionality
+* Screenshots included in project report
+
+---
+
+## Future Work
+
+* Improve prompt engineering for better summarization
+* Upgrade LLM (FLAN-T5-base or Mistral)
+* Add reranking for retrieval improvement
+* Deploy chatbot UI (Streamlit / Gradio)
+* Add automated evaluation metrics (BLEU / ROUGE / faithfulness scoring)
+
+---
+
 ## Installation
 
 ```bash
@@ -157,10 +438,11 @@ python src/build_vector_store.py
 
 ---
 
-## Future Work
+## Run Task 3 (RAG Evaluation)
 
-* Retrieval pipeline
-* RAG integration
-* LLM response generation
-* Streamlit/Gradio chatbot interface
-* Evaluation and benchmarking
+```bash
+python evaluate_rag.py
+```
+
+
+

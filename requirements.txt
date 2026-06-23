@@ -13,3 +13,4 @@ tqdm
 torch
 accelerate
 pickle-mixin
+gradio>=5.0.0
